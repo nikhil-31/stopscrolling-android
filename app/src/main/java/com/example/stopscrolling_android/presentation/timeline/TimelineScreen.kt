@@ -14,8 +14,21 @@ import java.util.*
 
 @Composable
 fun TimelineScreen(viewModel: UsageViewModel) {
-    val records by viewModel.allRecords.collectAsState()
-    
+    // History is rendered from the backend sessions API; the local outbox is overlaid
+    // so not-yet-uploaded activity is still visible.
+    val remoteRecords by viewModel.historyRecords.collectAsState()
+    val outboxRecords by viewModel.allRecords.collectAsState()
+    val timelineStatus by viewModel.timelineStatus.collectAsState()
+    val isLoading by viewModel.isLoadingTimeline.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshHistory()
+    }
+
+    val records = remember(remoteRecords, outboxRecords) {
+        TimelineModel.mergeRecords(remoteRecords ?: emptyList(), outboxRecords)
+    }
+
     var searchQuery by remember { mutableStateOf("") }
     val filteredRecords = remember(records, searchQuery) {
         if (searchQuery.isBlank()) records
@@ -33,6 +46,30 @@ fun TimelineScreen(viewModel: UsageViewModel) {
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             placeholder = { Text("Search apps, titles, URLs...") }
         )
+
+        timelineStatus?.let { status ->
+            Text(
+                text = status,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+
+        if (filteredRecords.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                Text(
+                    text = when {
+                        isLoading -> "Loading…"
+                        searchQuery.isNotBlank() -> "No matching activity."
+                        else -> "No activity to show yet."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            return@Column
+        }
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

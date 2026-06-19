@@ -1,8 +1,19 @@
 package com.example.stopscrolling_android.presentation.onboarding
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -11,17 +22,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 
 @Composable
 fun PermissionScreen(
-    viewModel: PermissionViewModel = hiltViewModel(),
-    onAllPermissionsGranted: () -> Unit
+    viewModel: PermissionViewModel = hiltViewModel()
 ) {
     val usageStatsGranted by viewModel.isUsageStatsPermissionGranted.collectAsState()
     val accessibilityGranted by viewModel.isAccessibilityPermissionGranted.collectAsState()
 
-    LaunchedEffect(usageStatsGranted, accessibilityGranted) {
-        if (usageStatsGranted && accessibilityGranted) {
-            onAllPermissionsGranted()
-        }
-    }
+    val needsUsageStats = !usageStatsGranted
+    val needsAccessibility = !accessibilityGranted
 
     Column(
         modifier = Modifier
@@ -37,34 +44,46 @@ fun PermissionScreen(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Stop Scrolling needs these permissions to track your app usage and help you stay productive.",
+            text = when {
+                needsUsageStats && needsAccessibility ->
+                    "Stop Scrolling needs these permissions to track your app usage and help you stay productive."
+                needsUsageStats ->
+                    "Grant usage access to see which apps you use and for how long."
+                else ->
+                    "Enable the accessibility service to detect browser URLs and page titles."
+            },
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(32.dp))
 
-        PermissionItem(
-            title = "Usage Access",
-            description = "Needed to see which apps you are using and for how long.",
-            isGranted = usageStatsGranted,
-            onGrantClick = { viewModel.openUsageStatsSettings() }
-        )
+        if (needsUsageStats) {
+            PermissionItem(
+                title = "Usage Access",
+                description = "Needed to see which apps you are using and for how long.",
+                onGrantClick = { viewModel.openUsageStatsSettings() }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        if (needsAccessibility) {
+            PermissionItem(
+                title = "Accessibility Service",
+                description = "Needed to detect browser URLs and page titles.",
+                onGrantClick = { viewModel.openAccessibilitySettings() }
+            )
+        }
 
-        PermissionItem(
-            title = "Accessibility Service",
-            description = "Needed to detect browser URLs and page titles.",
-            isGranted = accessibilityGranted,
-            onGrantClick = { viewModel.openAccessibilitySettings() }
-        )
-        
-        Spacer(modifier = Modifier.height(32.dp))
-        
-        Button(
-            onClick = { viewModel.checkPermissions() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Refresh Status")
+        if (!needsUsageStats || !needsAccessibility) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = buildString {
+                    if (!needsUsageStats) append("Usage access granted. ")
+                    if (!needsAccessibility) append("Accessibility service enabled.")
+                }.trim(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }
@@ -73,24 +92,15 @@ fun PermissionScreen(
 fun PermissionItem(
     title: String,
     description: String,
-    isGranted: Boolean,
     onGrantClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Text(text = title, style = MaterialTheme.typography.titleLarge)
             Text(text = description, style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.height(8.dp))
-            if (isGranted) {
-                Text(text = "Granted", color = MaterialTheme.colorScheme.primary)
-            } else {
-                Button(onClick = onGrantClick) {
-                    Text("Grant Permission")
-                }
+            Button(onClick = onGrantClick) {
+                Text("Grant Permission")
             }
         }
     }

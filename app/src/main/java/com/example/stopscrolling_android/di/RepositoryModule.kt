@@ -1,6 +1,8 @@
 package com.example.stopscrolling_android.di
 
+import com.example.stopscrolling_android.data.repository.AuthRepositoryImpl
 import com.example.stopscrolling_android.data.repository.UsageRepositoryImpl
+import com.example.stopscrolling_android.domain.repository.AuthRepository
 import com.example.stopscrolling_android.domain.repository.UsageRepository
 import dagger.Binds
 import dagger.Module
@@ -17,4 +19,10 @@ abstract class RepositoryModule {
     abstract fun bindUsageRepository(
         usageRepositoryImpl: UsageRepositoryImpl
     ): UsageRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAuthRepository(
+        authRepositoryImpl: AuthRepositoryImpl
+    ): AuthRepository
 }

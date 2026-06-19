@@ -6,7 +6,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
@@ -22,6 +24,8 @@ import com.example.stopscrolling_android.presentation.dashboard.DashboardScreen
 import com.example.stopscrolling_android.presentation.onboarding.PermissionScreen
 import com.example.stopscrolling_android.presentation.onboarding.PermissionViewModel
 import com.example.stopscrolling_android.presentation.timeline.TimelineScreen
+import com.example.stopscrolling_android.presentation.auth.AccountScreen
+import com.example.stopscrolling_android.presentation.auth.AuthViewModel
 import com.example.stopscrolling_android.presentation.settings.SettingsScreen
 import com.example.stopscrolling_android.ui.theme.StopscrollingandroidTheme
 import com.example.stopscrolling_android.usage.UsageTrackingService
@@ -52,17 +56,23 @@ fun MainScreen() {
     val navController = rememberNavController()
     val permissionViewModel: PermissionViewModel = hiltViewModel()
     val usageViewModel: UsageViewModel = hiltViewModel()
-    
+    val authViewModel: AuthViewModel = hiltViewModel()
+    var selectedTab by remember { mutableStateOf("dashboard") }
+
     val usageStatsGranted by permissionViewModel.isUsageStatsPermissionGranted.collectAsState()
     val accessibilityGranted by permissionViewModel.isAccessibilityPermissionGranted.collectAsState()
-    
-    val showOnboarding = !usageStatsGranted || !accessibilityGranted
+    val allPermissionsGranted = usageStatsGranted && accessibilityGranted
 
-    if (showOnboarding) {
-        PermissionScreen(
-            viewModel = permissionViewModel,
-            onAllPermissionsGranted = { permissionViewModel.checkPermissions() }
-        )
+    LifecycleResumeEffect(allPermissionsGranted) {
+        permissionViewModel.checkPermissions()
+        if (allPermissionsGranted) {
+            authViewModel.registerDeviceOnResume()
+        }
+        onPauseOrDispose { }
+    }
+
+    if (!allPermissionsGranted) {
+        PermissionScreen(viewModel = permissionViewModel)
     } else {
         Scaffold(
             bottomBar = {
@@ -70,20 +80,46 @@ fun MainScreen() {
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Dashboard, contentDescription = "Dashboard") },
                         label = { Text("Dashboard") },
-                        selected = true, // Simplified for brevity
-                        onClick = { navController.navigate("dashboard") }
+                        selected = selectedTab == "dashboard",
+                        onClick = {
+                            selectedTab = "dashboard"
+                            navController.navigate("dashboard") {
+                                launchSingleTop = true
+                            }
+                        }
                     )
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.History, contentDescription = "Timeline") },
                         label = { Text("Timeline") },
-                        selected = false,
-                        onClick = { navController.navigate("timeline") }
+                        selected = selectedTab == "timeline",
+                        onClick = {
+                            selectedTab = "timeline"
+                            navController.navigate("timeline") {
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                    NavigationBarItem(
+                        icon = { Icon(Icons.Default.AccountCircle, contentDescription = "Account") },
+                        label = { Text("Account") },
+                        selected = selectedTab == "account",
+                        onClick = {
+                            selectedTab = "account"
+                            navController.navigate("account") {
+                                launchSingleTop = true
+                            }
+                        }
                     )
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                         label = { Text("Settings") },
-                        selected = false,
-                        onClick = { navController.navigate("settings") }
+                        selected = selectedTab == "settings",
+                        onClick = {
+                            selectedTab = "settings"
+                            navController.navigate("settings") {
+                                launchSingleTop = true
+                            }
+                        }
                     )
                 }
             }
@@ -95,6 +131,9 @@ fun MainScreen() {
             ) {
                 composable("dashboard") { DashboardScreen(usageViewModel) }
                 composable("timeline") { TimelineScreen(usageViewModel) }
+                composable("account") {
+                    AccountScreen(authViewModel)
+                }
                 composable("settings") { SettingsScreen(usageViewModel) }
             }
         }
