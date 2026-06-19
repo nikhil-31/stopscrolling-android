@@ -1,21 +1,21 @@
 package com.example.stopscrolling_android.presentation.onboarding
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessibilityNew
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -28,80 +28,137 @@ fun PermissionScreen(
     val accessibilityGranted by viewModel.isAccessibilityPermissionGranted.collectAsState()
     val enhancedTrackingEnabled by viewModel.enhancedTrackingEnabled.collectAsState()
 
-    val needsUsageStats = !usageStatsGranted
-    val needsAccessibility = enhancedTrackingEnabled && !accessibilityGranted
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.spacedBy(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "Permissions Required",
-            style = MaterialTheme.typography.headlineMedium,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = when {
-                needsUsageStats && needsAccessibility ->
-                    "Stop Scrolling needs these permissions to track your app usage and help you stay productive."
-                needsUsageStats ->
-                    "Grant usage access to see which apps you use and for how long."
-                else ->
-                    "Enable the accessibility service to detect browser URLs and page titles."
-            },
-            textAlign = TextAlign.Center
-        )
         Spacer(modifier = Modifier.height(32.dp))
+        
+        Icon(
+            imageVector = Icons.Default.Security,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(64.dp)
+        )
 
-        if (needsUsageStats) {
-            PermissionItem(
-                title = "Usage Access",
-                description = "Needed to see which apps you are using and for how long.",
-                onGrantClick = { viewModel.openUsageStatsSettings() }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "Secure Tracking",
+                style = MaterialTheme.typography.headlineMedium,
+                textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Stop Scrolling uses these permissions to help you understand and manage your digital habits.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
         }
 
-        if (needsAccessibility) {
-            PermissionItem(
+        Spacer(modifier = Modifier.height(8.dp))
+
+        PermissionCard(
+            title = "App Usage Access",
+            description = "Track which apps you use and for how long.",
+            icon = Icons.Default.BarChart,
+            isGranted = usageStatsGranted,
+            onGrantClick = { viewModel.openUsageStatsSettings() }
+        )
+
+        if (enhancedTrackingEnabled) {
+            PermissionCard(
                 title = "Accessibility Service",
-                description = "Needed to detect browser URLs and page titles.",
+                description = "Enables URL tracking and precise idle detection.",
+                icon = Icons.Default.AccessibilityNew,
+                isGranted = accessibilityGranted,
                 onGrantClick = { viewModel.openAccessibilitySettings() }
             )
         }
 
-        if (!needsUsageStats || !needsAccessibility) {
-            Spacer(modifier = Modifier.height(16.dp))
+        if (usageStatsGranted && (!enhancedTrackingEnabled || accessibilityGranted)) {
             Text(
-                text = buildString {
-                    if (!needsUsageStats) append("Usage access granted. ")
-                    if (!needsAccessibility) append("Accessibility service enabled.")
-                }.trim(),
+                text = "All necessary permissions granted!",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center
+                fontWeight = FontWeight.Bold
             )
         }
+        
+        Spacer(modifier = Modifier.weight(1f))
+        
+        Text(
+            text = "Your data never leaves this device unless you enable backend sync in Settings.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
     }
 }
 
 @Composable
-fun PermissionItem(
+private fun PermissionCard(
     title: String,
     description: String,
+    icon: ImageVector,
+    isGranted: Boolean,
     onGrantClick: () -> Unit
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = title, style = MaterialTheme.typography.titleLarge)
-            Text(text = description, style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = onGrantClick) {
-                Text("Grant Permission")
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isGranted) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f) 
+                             else MaterialTheme.colorScheme.surface
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = if (isGranted) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    else MaterialTheme.colorScheme.outlineVariant
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Surface(
+                color = if (isGranted) MaterialTheme.colorScheme.primary 
+                        else MaterialTheme.colorScheme.surfaceVariant,
+                shape = CircleShape,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = if (isGranted) Icons.Default.CheckCircle else icon,
+                        contentDescription = null,
+                        tint = if (isGranted) MaterialTheme.colorScheme.onPrimary 
+                               else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = title, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            if (!isGranted) {
+                Button(
+                    onClick = onGrantClick,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    Text("Enable", style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }

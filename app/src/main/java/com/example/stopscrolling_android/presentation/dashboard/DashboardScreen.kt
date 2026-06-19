@@ -10,17 +10,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.stopscrolling_android.data.remote.dto.DeviceRow
 import com.example.stopscrolling_android.presentation.UsageViewModel
@@ -82,19 +83,25 @@ fun DashboardScreen(viewModel: UsageViewModel) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Text(text = "Today", style = MaterialTheme.typography.headlineMedium)
+            timelineStatus?.let { status ->
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+            }
             Text(
                 text = todayLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
             )
-            timelineStatus?.let { status ->
-                Text(
-                    text = status,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
         }
 
         item {
@@ -105,23 +112,29 @@ fun DashboardScreen(viewModel: UsageViewModel) {
                 StatCard(
                     label = "Screen time",
                     value = TimelineModel.formatDuration(totalScreenTime),
-                    tint = CategoryColors.colorFor("Productivity"),
+                    icon = Icons.Default.HourglassEmpty,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f)
                 )
                 StatCard(
                     label = "Sessions",
                     value = "${segments.size}",
-                    tint = CategoryColors.colorFor("Development"),
+                    icon = Icons.AutoMirrored.Filled.List,
+                    tint = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.weight(1f)
                 )
             }
         }
 
         item {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Timeline (All Devices)",
+                        text = "Usage Timeline",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -151,12 +164,25 @@ fun DashboardScreen(viewModel: UsageViewModel) {
                     } else {
                         displayDevices.forEach { device ->
                             val deviceSegments = segments.filter { it.deviceName == device.deviceName }
-                            Text(
-                                text = if (device.label.isNotBlank()) device.label else device.deviceName,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(bottom = 4.dp, top = if (displayDevices.first() == device) 0.dp else 8.dp)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(bottom = 4.dp, top = if (displayDevices.first() == device) 0.dp else 12.dp)
+                            ) {
+                                Text(
+                                    text = if (device.label.isNotBlank()) device.label else device.deviceName,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                val deviceTime = deviceSegments.sumOf { it.durationSeconds }
+                                if (deviceTime > 0) {
+                                    Text(
+                                        text = TimelineModel.formatDuration(deviceTime),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            }
                             HorizontalTimelineBar(
                                 segments = deviceSegments,
                                 dayStartMs = dayStartMs,
@@ -172,8 +198,8 @@ fun DashboardScreen(viewModel: UsageViewModel) {
 
 
         item {
-            HorizontalDivider()
-            Text(text = "Top apps today", style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = "Top Apps", style = MaterialTheme.typography.titleLarge)
         }
 
         if (topApps.isEmpty()) {
@@ -187,16 +213,28 @@ fun DashboardScreen(viewModel: UsageViewModel) {
         } else {
             items(topApps.size) { index ->
                 val (appName, duration) = topApps[index]
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(text = appName)
-                    Text(
-                        text = TimelineModel.formatDuration(duration),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                val maxDuration = topApps.first().second
+                val fraction = if (maxDuration > 0) duration.toFloat() / maxDuration else 0f
+                
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = appName, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = TimelineModel.formatDuration(duration),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { fraction },
+                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                        color = CategoryColors.colorFor(appName), // Fallback to app name if category unknown
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 }
             }
@@ -208,25 +246,36 @@ fun DashboardScreen(viewModel: UsageViewModel) {
 private fun StatCard(
     label: String,
     value: String,
+    icon: ImageVector,
     tint: androidx.compose.ui.graphics.Color,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    ElevatedCard(
         modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = tint.copy(alpha = 0.10f)
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = tint,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineSmall,
-                color = tint
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }

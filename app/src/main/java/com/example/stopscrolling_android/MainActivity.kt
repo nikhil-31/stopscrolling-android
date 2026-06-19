@@ -51,6 +51,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
@@ -73,6 +74,26 @@ fun MainScreen() {
         PermissionScreen(viewModel = permissionViewModel)
     } else {
         Scaffold(
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            text = when (selectedTab) {
+                                "dashboard" -> "Dashboard"
+                                "timeline" -> "Timeline"
+                                "account" -> "Account"
+                                "settings" -> "Settings"
+                                else -> "Stop Scrolling"
+                            },
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                )
+            },
             bottomBar = {
                 NavigationBar {
                     NavigationBarItem(
