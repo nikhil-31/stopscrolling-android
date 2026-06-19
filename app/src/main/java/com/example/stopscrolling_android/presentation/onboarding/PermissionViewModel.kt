@@ -10,16 +10,24 @@ import android.os.Process
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.stopscrolling_android.accessibility.UsageAccessibilityService
+import com.example.stopscrolling_android.data.settings.BackendSettingsStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 @HiltViewModel
 class PermissionViewModel @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val backendSettingsStore: BackendSettingsStore
 ) : ViewModel() {
 
     private val _isUsageStatsPermissionGranted = MutableStateFlow(hasUsageStatsPermission())
@@ -28,8 +36,17 @@ class PermissionViewModel @Inject constructor(
     private val _isAccessibilityPermissionGranted = MutableStateFlow(isAccessibilityServiceEnabled())
     val isAccessibilityPermissionGranted = _isAccessibilityPermissionGranted.asStateFlow()
 
-    val allPermissionsGranted: Boolean
-        get() = _isUsageStatsPermissionGranted.value && _isAccessibilityPermissionGranted.value
+    val enhancedTrackingEnabled: StateFlow<Boolean> = backendSettingsStore.settings
+        .map { it.enhancedTrackingEnabled }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val allPermissionsGranted: StateFlow<Boolean> = combine(
+        isUsageStatsPermissionGranted,
+        isAccessibilityPermissionGranted,
+        backendSettingsStore.settings
+    ) { usage, accessibility, settings ->
+        usage && (accessibility || !settings.enhancedTrackingEnabled)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     fun checkPermissions() {
         _isUsageStatsPermissionGranted.value = hasUsageStatsPermission()

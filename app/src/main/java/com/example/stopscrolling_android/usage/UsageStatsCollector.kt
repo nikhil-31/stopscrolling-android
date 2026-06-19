@@ -4,6 +4,7 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import com.example.stopscrolling_android.data.database.UsageRecord
+import com.example.stopscrolling_android.data.device.DeviceInfo
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -58,6 +59,7 @@ class UsageStatsCollector @Inject constructor(
             appName = appLabel,
             packageName = packageName,
             category = CategoryMapper.getCategory(context, packageName),
+            deviceName = DeviceInfo.deviceName(),
             durationSeconds = (endTime - startTime) / 1000,
             source = "UsageStats"
         )

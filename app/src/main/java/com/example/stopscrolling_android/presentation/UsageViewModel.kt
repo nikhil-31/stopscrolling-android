@@ -3,7 +3,9 @@ package com.example.stopscrolling_android.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.stopscrolling_android.data.database.UsageRecord
+import com.example.stopscrolling_android.data.remote.dto.DeviceRow
 import com.example.stopscrolling_android.data.sync.BackendSyncService
+import com.example.stopscrolling_android.data.sync.DevicesFetchResult
 import com.example.stopscrolling_android.data.sync.SessionsFetchResult
 import com.example.stopscrolling_android.data.sync.SyncSessionMapper
 import com.example.stopscrolling_android.domain.repository.AuthRepository
@@ -43,6 +45,9 @@ class UsageViewModel @Inject constructor(
     // Multi-day history (Timeline screen) rendered from the backend sessions API.
     private val _historyRecords = MutableStateFlow<List<UsageRecord>?>(null)
     val historyRecords: StateFlow<List<UsageRecord>?> = _historyRecords.asStateFlow()
+
+    private val _devices = MutableStateFlow<List<DeviceRow>>(emptyList())
+    val devices: StateFlow<List<DeviceRow>> = _devices.asStateFlow()
 
     private val _timelineStatus = MutableStateFlow<String?>(null)
     val timelineStatus: StateFlow<String?> = _timelineStatus.asStateFlow()
@@ -91,6 +96,7 @@ class UsageViewModel @Inject constructor(
 
         viewModelScope.launch {
             _isLoadingTimeline.value = true
+            refreshDevicesInternal()
             val end = System.currentTimeMillis()
             val start = end - days * MILLIS_PER_DAY
             when (val result = backendSyncService.fetchSessions(start, end)) {
@@ -109,6 +115,17 @@ class UsageViewModel @Inject constructor(
                 }
             }
             _isLoadingTimeline.value = false
+        }
+    }
+
+    private suspend fun refreshDevicesInternal() {
+        when (val result = backendSyncService.fetchDevices()) {
+            is DevicesFetchResult.Success -> {
+                _devices.value = result.response.results
+            }
+            else -> {
+                // Keep existing or handle failure
+            }
         }
     }
 

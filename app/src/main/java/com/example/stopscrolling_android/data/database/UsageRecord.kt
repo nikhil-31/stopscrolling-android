@@ -15,6 +15,7 @@ data class UsageRecord(
     val packageName: String,
     val category: String,
     val platform: String = "Android",
+    val deviceName: String = "This Device",
     val durationSeconds: Long,
     val source: String, // "UsageStats" or "Accessibility"
     val isSynced: Boolean = false

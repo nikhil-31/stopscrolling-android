@@ -22,11 +22,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.stopscrolling_android.data.remote.dto.DeviceRow
 import com.example.stopscrolling_android.presentation.UsageViewModel
 import com.example.stopscrolling_android.presentation.timeline.CategoryColors
 import com.example.stopscrolling_android.presentation.timeline.HorizontalTimelineBar
 import com.example.stopscrolling_android.presentation.timeline.TimelineModel
-import com.example.stopscrolling_android.presentation.timeline.VerticalTimelineList
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -35,10 +35,12 @@ import java.util.Locale
 fun DashboardScreen(viewModel: UsageViewModel) {
     val records by viewModel.allRecords.collectAsState()
     val backendSegments by viewModel.daySegments.collectAsState()
+    val devices by viewModel.devices.collectAsState()
     val timelineStatus by viewModel.timelineStatus.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.refreshDayTimeline()
+        viewModel.refreshHistory() // Also refreshes devices
     }
 
     val (dayStartMs, dayEndMs) = remember { TimelineModel.dayBounds() }
@@ -119,36 +121,55 @@ fun DashboardScreen(viewModel: UsageViewModel) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Timeline",
+                        text = "Timeline (All Devices)",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalTimelineBar(
-                        segments = segments,
-                        dayStartMs = dayStartMs,
-                        dayEndMs = dayEndMs,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+
+                    val displayDevices = remember(segments, devices) {
+                        val namesFromSegments = segments.map { it.deviceName }.distinct()
+                        val fromSegments = namesFromSegments.map { name ->
+                            val device = devices.find { it.deviceName == name }
+                            device ?: DeviceRow(
+                                deviceId = "",
+                                devicePlatform = "",
+                                deviceName = name,
+                                registeredAt = "",
+                                updatedAt = ""
+                            )
+                        }
+                        (fromSegments + devices).distinctBy { it.deviceName }.sortedBy { it.deviceName }
+                    }
+
+                    if (displayDevices.isEmpty()) {
+                        HorizontalTimelineBar(
+                            segments = emptyList(),
+                            dayStartMs = dayStartMs,
+                            dayEndMs = dayEndMs,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        displayDevices.forEach { device ->
+                            val deviceSegments = segments.filter { it.deviceName == device.deviceName }
+                            Text(
+                                text = if (device.label.isNotBlank()) device.label else device.deviceName,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 4.dp, top = if (displayDevices.first() == device) 0.dp else 8.dp)
+                            )
+                            HorizontalTimelineBar(
+                                segments = deviceSegments,
+                                dayStartMs = dayStartMs,
+                                dayEndMs = dayEndMs,
+                                modifier = Modifier.fillMaxWidth(),
+                                barHeight = 24.dp
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        item {
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Recent activity",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    VerticalTimelineList(
-                        segments = segments,
-                        sessionCount = segments.size,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        }
 
         item {
             HorizontalDivider()

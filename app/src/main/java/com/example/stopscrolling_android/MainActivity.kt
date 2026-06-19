@@ -59,9 +59,7 @@ fun MainScreen() {
     val authViewModel: AuthViewModel = hiltViewModel()
     var selectedTab by remember { mutableStateOf("dashboard") }
 
-    val usageStatsGranted by permissionViewModel.isUsageStatsPermissionGranted.collectAsState()
-    val accessibilityGranted by permissionViewModel.isAccessibilityPermissionGranted.collectAsState()
-    val allPermissionsGranted = usageStatsGranted && accessibilityGranted
+    val allPermissionsGranted by permissionViewModel.allPermissionsGranted.collectAsState()
 
     LifecycleResumeEffect(allPermissionsGranted) {
         permissionViewModel.checkPermissions()

@@ -26,9 +26,10 @@ fun PermissionScreen(
 ) {
     val usageStatsGranted by viewModel.isUsageStatsPermissionGranted.collectAsState()
     val accessibilityGranted by viewModel.isAccessibilityPermissionGranted.collectAsState()
+    val enhancedTrackingEnabled by viewModel.enhancedTrackingEnabled.collectAsState()
 
     val needsUsageStats = !usageStatsGranted
-    val needsAccessibility = !accessibilityGranted
+    val needsAccessibility = enhancedTrackingEnabled && !accessibilityGranted
 
     Column(
         modifier = Modifier

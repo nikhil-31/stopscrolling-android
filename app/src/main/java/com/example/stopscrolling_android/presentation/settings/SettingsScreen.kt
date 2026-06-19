@@ -18,12 +18,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.stopscrolling_android.data.remote.dto.DeviceRow
 import com.example.stopscrolling_android.presentation.UsageViewModel
 import com.example.stopscrolling_android.util.CsvExporter
 import kotlinx.coroutines.launch
@@ -40,9 +44,11 @@ fun SettingsScreen(
     val unsyncedCount by settingsViewModel.unsyncedCount.collectAsState()
     val syncStatus by settingsViewModel.syncStatus.collectAsState()
     val isSyncing by settingsViewModel.isSyncing.collectAsState()
+    val devices by settingsViewModel.devices.collectAsState()
 
     LaunchedEffect(Unit) {
         settingsViewModel.refreshUnsyncedCount()
+        settingsViewModel.refreshDevices()
     }
 
     Column(
@@ -64,6 +70,18 @@ fun SettingsScreen(
                     label = "Sync events to backend",
                     checked = backendSettings.syncEnabled,
                     onCheckedChange = settingsViewModel::updateSyncEnabled
+                )
+
+                RowWithSwitch(
+                    label = "Enhanced tracking (Accessibility)",
+                    checked = backendSettings.enhancedTrackingEnabled,
+                    onCheckedChange = settingsViewModel::updateEnhancedTrackingEnabled
+                )
+
+                Text(
+                    text = "Accessibility tracking allows capturing URLs from browsers and more accurate idle detection.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 OutlinedTextField(
@@ -115,6 +133,20 @@ fun SettingsScreen(
             }
         }
 
+        if (devices.isNotEmpty()) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(text = "My Devices", style = MaterialTheme.typography.titleMedium)
+                    devices.forEach { device ->
+                        DeviceItem(device)
+                    }
+                }
+            }
+        }
+
         HorizontalDivider()
 
         Button(
@@ -137,6 +169,34 @@ fun SettingsScreen(
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
         ) {
             Text("Clear All Data")
+        }
+    }
+}
+
+@Composable
+private fun DeviceItem(device: DeviceRow) {
+    androidx.compose.foundation.layout.Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (device.label.isNotBlank()) device.label else device.deviceName,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                text = "${device.devicePlatform} • ${device.sessionCount} sessions",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (device.lastSeenAt != null) {
+                Text(
+                    text = "Last seen: ${device.lastSeenAt}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

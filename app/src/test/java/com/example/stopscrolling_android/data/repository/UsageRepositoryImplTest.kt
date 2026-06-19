@@ -40,6 +40,7 @@ class UsageRepositoryImplTest {
                 appName = "App",
                 packageName = "pkg",
                 category = "Cat",
+                deviceName = "Test Device",
                 durationSeconds = 1L,
                 source = "Test"
             )
