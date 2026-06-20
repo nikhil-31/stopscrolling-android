@@ -1,6 +1,7 @@
 package com.example.stopscrolling_android.presentation.timeline
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -25,7 +26,8 @@ fun HorizontalTimelineBar(
     dayStartMs: Long,
     dayEndMs: Long,
     modifier: Modifier = Modifier,
-    barHeight: androidx.compose.ui.unit.Dp = 48.dp
+    barHeight: androidx.compose.ui.unit.Dp = 48.dp,
+    onSegmentClick: ((TimelineSegment) -> Unit)? = null
 ) {
     val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
 
@@ -54,6 +56,13 @@ fun HorizontalTimelineBar(
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(if (barHeight < 30.dp) 2.dp else 4.dp))
                         .background(color.copy(alpha = 0.9f))
+                        .then(
+                            if (onSegmentClick != null) {
+                                Modifier.clickable { onSegmentClick(segment) }
+                            } else {
+                                Modifier
+                            }
+                        )
                 )
             }
         }

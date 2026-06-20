@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,6 +29,7 @@ import com.example.stopscrolling_android.presentation.UsageViewModel
 import com.example.stopscrolling_android.presentation.timeline.CategoryColors
 import com.example.stopscrolling_android.presentation.timeline.HorizontalTimelineBar
 import com.example.stopscrolling_android.presentation.timeline.TimelineModel
+import com.example.stopscrolling_android.presentation.timeline.TimelineSegment
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -38,6 +40,8 @@ fun DashboardScreen(viewModel: UsageViewModel) {
     val backendSegments by viewModel.daySegments.collectAsState()
     val devices by viewModel.devices.collectAsState()
     val timelineStatus by viewModel.timelineStatus.collectAsState()
+
+    var selectedSegment by remember { mutableStateOf<TimelineSegment?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshDayTimeline()
@@ -188,14 +192,14 @@ fun DashboardScreen(viewModel: UsageViewModel) {
                                 dayStartMs = dayStartMs,
                                 dayEndMs = dayEndMs,
                                 modifier = Modifier.fillMaxWidth(),
-                                barHeight = 24.dp
+                                barHeight = 48.dp,
+                                onSegmentClick = { selectedSegment = it }
                             )
                         }
                     }
                 }
             }
         }
-
 
         item {
             Spacer(modifier = Modifier.height(8.dp))
@@ -239,6 +243,63 @@ fun DashboardScreen(viewModel: UsageViewModel) {
                 }
             }
         }
+    }
+
+    selectedSegment?.let { segment ->
+        AlertDialog(
+            onDismissRequest = { selectedSegment = null },
+            confirmButton = {
+                TextButton(onClick = { selectedSegment = null }) {
+                    Text("Close")
+                }
+            },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = segment.appName)
+                }
+            },
+            text = {
+                val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DetailRow(label = "Category", value = segment.category)
+                    DetailRow(label = "Duration", value = TimelineModel.formatDuration(segment.durationSeconds))
+                    DetailRow(
+                        label = "Time", 
+                        value = "${timeFormat.format(Date(segment.startTimeMs))} - ${timeFormat.format(Date(segment.endTimeMs))}"
+                    )
+                    if (segment.label != segment.appName) {
+                        DetailRow(label = "Detail", value = segment.label)
+                    }
+                    if (segment.url != null) {
+                        DetailRow(label = "URL", value = segment.url)
+                    }
+                    DetailRow(label = "Device", value = segment.deviceName)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
