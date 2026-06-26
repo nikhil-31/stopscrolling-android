@@ -3,15 +3,21 @@ package com.example.stopscrolling_android.presentation.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.stopscrolling_android.data.remote.dto.AuthenticatedUser
+import com.example.stopscrolling_android.data.remote.dto.DeviceStatusRow
 import com.example.stopscrolling_android.data.remote.dto.MfaPendingResponse
 import com.example.stopscrolling_android.data.settings.BackendSettingsStore
 import com.example.stopscrolling_android.data.sync.BackendSyncService
+import com.example.stopscrolling_android.data.sync.DeviceStatusFetchResult
 import com.example.stopscrolling_android.domain.repository.AuthRepository
 import com.example.stopscrolling_android.startup.AppStartupRunner
+import com.example.stopscrolling_android.worker.HeartbeatScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,7 +28,8 @@ class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val backendSyncService: BackendSyncService,
     private val backendSettingsStore: BackendSettingsStore,
-    private val appStartupRunner: AppStartupRunner
+    private val appStartupRunner: AppStartupRunner,
+    private val heartbeatScheduler: HeartbeatScheduler
 ) : ViewModel() {
 
     val currentUser: StateFlow<AuthenticatedUser?> = authRepository.currentUser
@@ -60,6 +67,19 @@ class AuthViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
+    private val _devices = MutableStateFlow<List<DeviceStatusRow>>(emptyList())
+    val devices: StateFlow<List<DeviceStatusRow>> = _devices.asStateFlow()
+
+    private val _isLoadingDevices = MutableStateFlow(false)
+    val isLoadingDevices: StateFlow<Boolean> = _isLoadingDevices.asStateFlow()
+
+    private val _devicesError = MutableStateFlow<String?>(null)
+    val devicesError: StateFlow<String?> = _devicesError.asStateFlow()
+
+    val registeredDeviceId: StateFlow<String?> = backendSettingsStore.settings
+        .map { it.registeredDeviceId }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
     init {
         viewModelScope.launch {
             authRepository.restoreSession().onFailure {
@@ -67,6 +87,7 @@ class AuthViewModel @Inject constructor(
             }.onSuccess {
                 currentUser.value?.let { user ->
                     _statusMessage.value = "Signed in as ${user.email}"
+                    refreshDevices()
                 }
             }
         }
@@ -203,8 +224,11 @@ class AuthViewModel @Inject constructor(
     fun logout() {
         authRepository.logout()
         clearSensitiveFields()
+        _devices.value = emptyList()
+        _devicesError.value = null
         viewModelScope.launch {
             backendSettingsStore.clearRegisteredDeviceId()
+            heartbeatScheduler.cancel()
         }
         _statusMessage.value = "Signed out."
     }
@@ -212,6 +236,35 @@ class AuthViewModel @Inject constructor(
     fun registerDeviceOnResume() {
         viewModelScope.launch {
             appStartupRunner.registerDeviceIfSignedIn()
+            if (currentUser.value != null) {
+                refreshDevices()
+            }
+        }
+    }
+
+    fun refreshDevices() {
+        if (currentUser.value == null) {
+            _devices.value = emptyList()
+            _devicesError.value = null
+            return
+        }
+
+        viewModelScope.launch {
+            _isLoadingDevices.value = true
+            when (val result = backendSyncService.fetchDeviceStatus()) {
+                is DeviceStatusFetchResult.Success -> {
+                    _devices.value = result.response.results
+                    _devicesError.value = null
+                }
+                is DeviceStatusFetchResult.Skipped -> {
+                    _devices.value = emptyList()
+                    _devicesError.value = null
+                }
+                is DeviceStatusFetchResult.Failure -> {
+                    _devicesError.value = result.message
+                }
+            }
+            _isLoadingDevices.value = false
         }
     }
 
@@ -219,6 +272,7 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             appStartupRunner.registerDeviceIfSignedIn()
             backendSyncService.syncUnsyncedRecords()
+            refreshDevices()
         }
     }
 

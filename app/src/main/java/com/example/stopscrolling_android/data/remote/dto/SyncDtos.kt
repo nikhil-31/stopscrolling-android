@@ -4,6 +4,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+object EmptyBody
+
+@Serializable
 data class SyncStatusResponse(
     @SerialName("daily_through") val dailyThrough: String? = null,
     @SerialName("hourly_through") val hourlyThrough: String? = null,
@@ -101,6 +104,23 @@ data class DeviceListResponse(
 )
 
 @Serializable
+data class DeviceStatusRow(
+    @SerialName("device_id") val deviceId: String,
+    @SerialName("device_platform") val devicePlatform: String,
+    @SerialName("device_name") val deviceName: String,
+    val label: String = "",
+    @SerialName("is_online") val isOnline: Boolean = false,
+    @SerialName("last_online_at") val lastOnlineAt: String? = null,
+    @SerialName("last_online_seconds_ago") val lastOnlineSecondsAgo: Int? = null
+)
+
+@Serializable
+data class DeviceStatusListResponse(
+    val count: Int,
+    val results: List<DeviceStatusRow>
+)
+
+@Serializable
 data class InsightsTimelineResponse(
     @SerialName("device_id") val deviceId: String,
     @SerialName("device_platform") val devicePlatform: String,
@@ -124,3 +144,61 @@ data class InsightsSessionsResponse(
     val count: Int = 0,
     val sessions: List<SyncSessionRow> = emptyList()
 )
+
+@Serializable
+data class InsightsTodayResponse(
+    val start: String,
+    val end: String,
+    @SerialName("total_seconds") val totalSeconds: Int,
+    @SerialName("session_count") val sessionCount: Int,
+    val categories: List<CategoryInsight> = emptyList(),
+    val apps: List<AppInsight> = emptyList(),
+    val devices: List<DeviceInsight> = emptyList()
+)
+
+@Serializable
+data class CategoryInsight(
+    val category: String,
+    val seconds: Int,
+    val percentage: Double
+)
+
+@Serializable
+data class AppInsight(
+    val id: String,
+    @SerialName("app_name") val appName: String,
+    @SerialName("browser_app") val browserApp: String? = null,
+    @SerialName("is_website") val isWebsite: Boolean = false,
+    val seconds: Int,
+    @SerialName("session_count") val sessionCount: Int,
+    val percentage: Double,
+    @SerialName("color_index") val colorIndex: Int = 0,
+    @SerialName("device_label") val deviceLabel: String = ""
+)
+
+@Serializable
+data class DeviceInsight(
+    val id: String,
+    @SerialName("device_name") val deviceName: String,
+    @SerialName("device_platform") val devicePlatform: String,
+    @SerialName("time_zone") val timeZone: String,
+    @SerialName("day_start") val dayStart: String,
+    @SerialName("day_end") val dayEnd: String,
+    @SerialName("session_count") val sessionCount: Int,
+    @SerialName("total_seconds") val totalSeconds: Int,
+    val blocks: List<TimelineBlock> = emptyList()
+)
+
+@Serializable
+data class TimelineBlock(
+    val id: String,
+    val start: String,
+    val end: String,
+    @SerialName("time_zone") val timeZone: String,
+    @SerialName("active_seconds") val activeSeconds: Int,
+    @SerialName("span_seconds") val spanSeconds: Int,
+    @SerialName("session_count") val sessionCount: Int,
+    @SerialName("dominant_tint_key") val dominantTintKey: String? = null,
+    val items: List<AppInsight> = emptyList()
+)
+

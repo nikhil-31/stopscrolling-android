@@ -21,10 +21,13 @@ class UsageStatsCollector @Inject constructor(
         val records = mutableListOf<UsageRecord>()
         
         val appSessions = mutableMapOf<String, Long>() // PackageName to StartTime
+        val excludedPackages = setOf("com.android.systemui", "android", context.packageName)
 
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             val packageName = event.packageName
+            if (packageName in excludedPackages) continue
+
             val timestamp = event.timeStamp
 
             when (event.eventType) {

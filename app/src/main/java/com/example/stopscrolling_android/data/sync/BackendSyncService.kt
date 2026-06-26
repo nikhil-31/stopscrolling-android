@@ -10,7 +10,10 @@ import com.example.stopscrolling_android.data.remote.SyncApiClient
 import com.example.stopscrolling_android.data.remote.dto.DeviceRegisterRequest
 import com.example.stopscrolling_android.data.remote.dto.DeviceRow
 import com.example.stopscrolling_android.data.remote.dto.DeviceListResponse
+import com.example.stopscrolling_android.data.remote.dto.DeviceStatusListResponse
+import com.example.stopscrolling_android.data.remote.dto.DeviceStatusRow
 import com.example.stopscrolling_android.data.remote.dto.InsightsSessionsResponse
+import com.example.stopscrolling_android.data.remote.dto.InsightsTodayResponse
 import com.example.stopscrolling_android.data.remote.dto.SyncSessionRow
 import com.example.stopscrolling_android.data.settings.BackendSettingsStore
 import com.example.stopscrolling_android.domain.repository.AuthRepository
@@ -72,6 +75,60 @@ class BackendSyncService @Inject constructor(
         }
     }
 
+    /**
+     * Posts a heartbeat so the backend marks this device as online (`last_online_at`).
+     * Devices are considered online when the latest heartbeat is within five minutes.
+     */
+    suspend fun postHeartbeat(): HeartbeatResult = withContext(Dispatchers.IO) {
+        val settings = backendSettingsStore.current()
+        if (!settings.isReadyForSync(tokenStore.hasTokens())) {
+            return@withContext HeartbeatResult.Skipped("Sign in and enable backend sync.")
+        }
+
+        val accessToken = authRepository.getValidAccessToken()
+            ?: return@withContext HeartbeatResult.Skipped("Sign in on the Account screen.")
+
+        val deviceId = settings.registeredDeviceId
+            ?: ensureDeviceRegistered().getOrElse {
+                return@withContext HeartbeatResult.Skipped("Device not registered.")
+            }
+
+        try {
+            val refresh = suspend { authRepository.refreshAccessTokenIfNeeded() }
+            val status = deviceApiClient.postHeartbeatWithRetry(
+                baseUrl = settings.apiBaseUrl,
+                accessToken = accessToken,
+                deviceId = deviceId,
+                refreshAccessToken = refresh
+            )
+            HeartbeatResult.Success(status)
+        } catch (e: Exception) {
+            HeartbeatResult.Failure(e.message ?: "Could not post online status.")
+        }
+    }
+
+    suspend fun fetchDeviceStatus(): DeviceStatusFetchResult = withContext(Dispatchers.IO) {
+        val settings = backendSettingsStore.current()
+        if (!tokenStore.hasTokens()) {
+            return@withContext DeviceStatusFetchResult.Skipped("Sign in to see device status.")
+        }
+
+        val accessToken = authRepository.getValidAccessToken()
+            ?: return@withContext DeviceStatusFetchResult.Skipped("Sign in to see device status.")
+
+        try {
+            val refresh = suspend { authRepository.refreshAccessTokenIfNeeded() }
+            val response = deviceApiClient.fetchDeviceStatusWithRetry(
+                baseUrl = settings.apiBaseUrl,
+                accessToken = accessToken,
+                refreshAccessToken = refresh
+            )
+            DeviceStatusFetchResult.Success(response)
+        } catch (e: Exception) {
+            DeviceStatusFetchResult.Failure(e.message ?: "Could not load device status.")
+        }
+    }
+
     suspend fun fetchDevices(): DevicesFetchResult = withContext(Dispatchers.IO) {
         val settings = backendSettingsStore.current()
         if (!tokenStore.hasTokens()) {
@@ -124,6 +181,31 @@ class BackendSyncService @Inject constructor(
             }
         }
 
+    suspend fun fetchTodayInsights(day: String, timeZone: String): TodayInsightsFetchResult =
+        withContext(Dispatchers.IO) {
+            val settings = backendSettingsStore.current()
+            if (!settings.isReadyForSync(tokenStore.hasTokens())) {
+                return@withContext TodayInsightsFetchResult.Skipped("Sign in and enable backend sync.")
+            }
+
+            val accessToken = authRepository.getValidAccessToken()
+                ?: return@withContext TodayInsightsFetchResult.Skipped("Sign in on the Account screen.")
+
+            try {
+                val refresh = suspend { authRepository.refreshAccessTokenIfNeeded() }
+                val response = deviceApiClient.fetchTodayInsightsWithRetry(
+                    baseUrl = settings.apiBaseUrl,
+                    accessToken = accessToken,
+                    day = day,
+                    timeZone = timeZone,
+                    refreshAccessToken = refresh
+                )
+                TodayInsightsFetchResult.Success(response)
+            } catch (e: Exception) {
+                TodayInsightsFetchResult.Failure(e.message ?: "Could not load today's insights.")
+            }
+        }
+
     /**
      * Uploads any pending outbox rows and registers the device. There is no longer a
      * reverse pull into local storage: the backend is authoritative and the UI reads
@@ -143,6 +225,7 @@ class BackendSyncService @Inject constructor(
         try {
             val uploaded = uploadUnsyncedRecords(settings.apiBaseUrl, accessToken, refresh)
             ensureDeviceRegistered()
+            postHeartbeat()
             val remaining = usageDao.getUnsyncedCount()
             SyncResult.Success(uploaded = uploaded, pulled = 0, remaining = remaining)
         } catch (e: Exception) {
@@ -166,6 +249,7 @@ class BackendSyncService @Inject constructor(
                 refreshAccessToken = { authRepository.refreshAccessTokenIfNeeded() }
             )
             ensureDeviceRegistered()
+            postHeartbeat()
             val remaining = usageDao.getUnsyncedCount()
             SyncResult.Success(uploaded = uploaded, pulled = 0, remaining = remaining)
         } catch (e: Exception) {
@@ -223,6 +307,35 @@ class BackendSyncService @Inject constructor(
                 .sortedBy { it.startTimeMs }
         }
 
+        fun todayInsightsToSegments(response: InsightsTodayResponse): List<TimelineSegment> {
+            val segments = mutableListOf<TimelineSegment>()
+            for (device in response.devices) {
+                for (block in device.blocks) {
+                    if (block.items.isEmpty()) continue
+
+                    val dominantItem = block.items.maxByOrNull { it.seconds } ?: block.items.first()
+                    val startTimeMs = BackendDateTimeParser.parseToEpochMilli(block.start)
+                    val endTimeMs = BackendDateTimeParser.parseToEpochMilli(block.end)
+
+                    segments.add(
+                        TimelineSegment(
+                            id = block.id,
+                            startTimeMs = startTimeMs,
+                            endTimeMs = endTimeMs,
+                            label = dominantItem.appName,
+                            subtitle = device.deviceName,
+                            category = "Unknown",
+                            appName = dominantItem.appName,
+                            deviceName = device.deviceName,
+                            url = if (dominantItem.isWebsite) dominantItem.id else null,
+                            durationSeconds = block.activeSeconds.toLong()
+                        )
+                    )
+                }
+            }
+            return segments.sortedBy { it.startTimeMs }
+        }
+
         private fun sessionToSegment(
             session: SyncSessionRow,
             dayStartMs: Long,
@@ -270,4 +383,22 @@ sealed class DevicesFetchResult {
     data class Success(val response: DeviceListResponse) : DevicesFetchResult()
     data class Skipped(val reason: String) : DevicesFetchResult()
     data class Failure(val message: String) : DevicesFetchResult()
+}
+
+sealed class TodayInsightsFetchResult {
+    data class Success(val response: InsightsTodayResponse) : TodayInsightsFetchResult()
+    data class Skipped(val reason: String) : TodayInsightsFetchResult()
+    data class Failure(val message: String) : TodayInsightsFetchResult()
+}
+
+sealed class HeartbeatResult {
+    data class Success(val status: DeviceStatusRow) : HeartbeatResult()
+    data class Skipped(val reason: String) : HeartbeatResult()
+    data class Failure(val message: String) : HeartbeatResult()
+}
+
+sealed class DeviceStatusFetchResult {
+    data class Success(val response: DeviceStatusListResponse) : DeviceStatusFetchResult()
+    data class Skipped(val reason: String) : DeviceStatusFetchResult()
+    data class Failure(val message: String) : DeviceStatusFetchResult()
 }

@@ -1,6 +1,8 @@
 package com.example.stopscrolling_android.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import com.example.stopscrolling_android.data.database.UsageRecord
 import com.example.stopscrolling_android.data.device.DeviceInfo
@@ -29,9 +31,17 @@ class UsageAccessibilityService : AccessibilityService() {
     private var lastUrl: String? = null
     private var lastEventTime: Long = 0
     private var lastInteractionTime: Long = 0
+    private val idleCheckHandler = Handler(Looper.getMainLooper())
+    private val idleCheckRunnable = object : Runnable {
+        override fun run() {
+            checkIdle()
+            idleCheckHandler.postDelayed(this, IDLE_CHECK_INTERVAL_MS)
+        }
+    }
 
     companion object {
         private const val IDLE_THRESHOLD_MS = 60_000L // 1 minute
+        private const val IDLE_CHECK_INTERVAL_MS = 10_000L // 10 seconds
     }
 
     override fun onCreate() {
@@ -41,18 +51,26 @@ class UsageAccessibilityService : AccessibilityService() {
                 enhancedTrackingEnabled = settings.enhancedTrackingEnabled
             }
         }
+        idleCheckHandler.postDelayed(idleCheckRunnable, IDLE_CHECK_INTERVAL_MS)
+    }
+
+    private fun checkIdle() {
+        val currentTime = System.currentTimeMillis()
+        if (lastEventTime != 0L && (currentTime - lastInteractionTime) > IDLE_THRESHOLD_MS) {
+            finalizeCurrentSession(lastInteractionTime)
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (!enhancedTrackingEnabled) return
 
         val packageName = event.packageName?.toString() ?: return
+        if (packageName == "com.android.systemui" || packageName == "android" || packageName == this.packageName) return
+
         val currentTime = System.currentTimeMillis()
 
         // 1. Check for idle gap
-        if (lastEventTime != 0L && (currentTime - lastInteractionTime) > IDLE_THRESHOLD_MS) {
-            finalizeCurrentSession(lastInteractionTime)
-        }
+        checkIdle()
 
         val eventType = event.eventType
 
@@ -154,6 +172,7 @@ class UsageAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        idleCheckHandler.removeCallbacks(idleCheckRunnable)
         finalizeCurrentSession(System.currentTimeMillis())
         super.onDestroy()
     }

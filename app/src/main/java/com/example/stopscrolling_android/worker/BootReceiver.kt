@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.Intent
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import dagger.hilt.android.AndroidEntryPoint
@@ -41,6 +43,15 @@ class BootReceiver : BroadcastReceiver() {
                 "BackendSync",
                 ExistingPeriodicWorkPolicy.KEEP,
                 syncRequest
+            )
+
+            val heartbeatRequest = OneTimeWorkRequestBuilder<HeartbeatWorker>()
+                .setConstraints(networkConstraints)
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "BackendHeartbeat",
+                ExistingWorkPolicy.REPLACE,
+                heartbeatRequest
             )
         }
     }

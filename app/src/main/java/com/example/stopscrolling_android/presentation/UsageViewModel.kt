@@ -3,10 +3,12 @@ package com.example.stopscrolling_android.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.stopscrolling_android.data.database.UsageRecord
+import com.example.stopscrolling_android.data.device.DeviceInfo
 import com.example.stopscrolling_android.data.remote.dto.DeviceRow
 import com.example.stopscrolling_android.data.sync.BackendSyncService
 import com.example.stopscrolling_android.data.sync.DevicesFetchResult
 import com.example.stopscrolling_android.data.sync.SessionsFetchResult
+import com.example.stopscrolling_android.data.sync.TodayInsightsFetchResult
 import com.example.stopscrolling_android.data.sync.SyncSessionMapper
 import com.example.stopscrolling_android.domain.repository.AuthRepository
 import com.example.stopscrolling_android.domain.repository.UsageRepository
@@ -64,21 +66,18 @@ class UsageViewModel @Inject constructor(
 
         viewModelScope.launch {
             _isLoadingTimeline.value = true
-            val (dayStartMs, dayEndMs) = TimelineModel.dayBounds(referenceMs)
-            when (val result = backendSyncService.fetchSessions(dayStartMs, dayEndMs)) {
-                is SessionsFetchResult.Success -> {
-                    _daySegments.value = BackendSyncService.sessionSegments(
-                        sessions = result.response.sessions,
-                        windowStartMs = dayStartMs,
-                        windowEndMs = dayEndMs
-                    )
+            val day = TimelineModel.formatDate(referenceMs)
+            val timeZone = DeviceInfo.timeZone()
+            when (val result = backendSyncService.fetchTodayInsights(day, timeZone)) {
+                is TodayInsightsFetchResult.Success -> {
+                    _daySegments.value = BackendSyncService.todayInsightsToSegments(result.response)
                     _timelineStatus.value = null
                 }
-                is SessionsFetchResult.Skipped -> {
+                is TodayInsightsFetchResult.Skipped -> {
                     _daySegments.value = null
                     _timelineStatus.value = null
                 }
-                is SessionsFetchResult.Failure -> {
+                is TodayInsightsFetchResult.Failure -> {
                     // Keep the last successful response (in-memory cache) so brief
                     // offline periods show stale-but-useful data instead of nothing.
                     _timelineStatus.value = result.message

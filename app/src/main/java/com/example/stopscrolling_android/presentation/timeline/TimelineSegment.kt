@@ -41,6 +41,11 @@ object TimelineModel {
         return start to end
     }
 
+    fun formatDate(referenceMs: Long = System.currentTimeMillis()): String {
+        val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        return formatter.format(java.util.Date(referenceMs))
+    }
+
     fun recordsForDay(records: List<UsageRecord>, dayStartMs: Long, dayEndMs: Long): List<UsageRecord> {
         return records.filter { record ->
             record.endTimeUTC > dayStartMs && record.startTimeUTC < dayEndMs

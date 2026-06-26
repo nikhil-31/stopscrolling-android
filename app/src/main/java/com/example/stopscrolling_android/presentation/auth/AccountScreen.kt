@@ -2,6 +2,7 @@ package com.example.stopscrolling_android.presentation.auth
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -21,6 +23,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.stopscrolling_android.data.remote.dto.DeviceStatusRow
 
 @Composable
 fun AccountScreen(viewModel: AuthViewModel) {
@@ -36,6 +39,16 @@ fun AccountScreen(viewModel: AuthViewModel) {
     val useBackupCode by viewModel.useBackupCode.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val devices by viewModel.devices.collectAsState()
+    val isLoadingDevices by viewModel.isLoadingDevices.collectAsState()
+    val devicesError by viewModel.devicesError.collectAsState()
+    val registeredDeviceId by viewModel.registeredDeviceId.collectAsState()
+
+    LaunchedEffect(currentUser?.trackingId) {
+        if (currentUser != null) {
+            viewModel.refreshDevices()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -77,6 +90,11 @@ fun AccountScreen(viewModel: AuthViewModel) {
                 when {
                     currentUser != null -> SignedInContent(
                         user = currentUser!!,
+                        devices = devices,
+                        isLoadingDevices = isLoadingDevices,
+                        devicesError = devicesError,
+                        registeredDeviceId = registeredDeviceId,
+                        onRefreshDevices = viewModel::refreshDevices,
                         onLogout = viewModel::logout
                     )
                     mfaChallenge != null -> MfaContent(
@@ -346,6 +364,11 @@ private fun MfaContent(
 @Composable
 private fun SignedInContent(
     user: com.example.stopscrolling_android.data.remote.dto.AuthenticatedUser,
+    devices: List<DeviceStatusRow>,
+    isLoadingDevices: Boolean,
+    devicesError: String?,
+    registeredDeviceId: String?,
+    onRefreshDevices: () -> Unit,
     onLogout: () -> Unit
 ) {
     Column(
@@ -377,6 +400,14 @@ private fun SignedInContent(
             }
         }
 
+        DevicesSection(
+            devices = devices,
+            isLoading = isLoadingDevices,
+            error = devicesError,
+            registeredDeviceId = registeredDeviceId,
+            onRefresh = onRefreshDevices
+        )
+
         Spacer(modifier = Modifier.height(8.dp))
         
         OutlinedButton(
@@ -390,6 +421,175 @@ private fun SignedInContent(
             Text("Sign Out")
         }
     }
+}
+
+@Composable
+private fun DevicesSection(
+    devices: List<DeviceStatusRow>,
+    isLoading: Boolean,
+    error: String?,
+    registeredDeviceId: String?,
+    onRefresh: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Devices",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                IconButton(onClick = onRefresh, enabled = !isLoading) {
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh devices")
+                    }
+                }
+            }
+
+            when {
+                error != null -> {
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                devices.isEmpty() && !isLoading -> {
+                    Text(
+                        text = "No registered devices yet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                else -> {
+                    devices.forEach { device ->
+                        DeviceStatusItem(
+                            device = device,
+                            isCurrentDevice = device.deviceId == registeredDeviceId
+                        )
+                        if (device != devices.last()) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceStatusItem(
+    device: DeviceStatusRow,
+    isCurrentDevice: Boolean
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (device.label.isNotBlank()) device.label else device.deviceName,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                if (isCurrentDevice) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            text = "This device",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+            Text(
+                text = device.devicePlatform.replaceFirstChar { it.uppercase() },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.size(8.dp),
+                    shape = CircleShape,
+                    color = if (device.isOnline) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    }
+                ) {}
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (device.isOnline) {
+                        "Online"
+                    } else {
+                        formatLastSeen(device.lastOnlineSecondsAgo, device.lastOnlineAt)
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (device.isOnline) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+            }
+        }
+        Icon(
+            imageVector = devicePlatformIcon(device.devicePlatform),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        )
+    }
+}
+
+private fun devicePlatformIcon(platform: String): ImageVector {
+    return when (platform.lowercase()) {
+        "android" -> Icons.Default.Android
+        "macos", "ios" -> Icons.Default.Smartphone
+        "windows" -> Icons.Default.Laptop
+        else -> Icons.Default.Devices
+    }
+}
+
+private fun formatLastSeen(secondsAgo: Int?, lastOnlineAt: String?): String {
+    if (secondsAgo != null) {
+        return when {
+            secondsAgo < 60 -> "Last seen just now"
+            secondsAgo < 3600 -> "Last seen ${secondsAgo / 60} min ago"
+            secondsAgo < 86_400 -> "Last seen ${secondsAgo / 3600} hr ago"
+            else -> "Last seen ${secondsAgo / 86_400} days ago"
+        }
+    }
+    if (!lastOnlineAt.isNullOrBlank()) {
+        val formatted = lastOnlineAt
+            .substringBefore("T")
+            .replace("-", "/")
+        return "Last seen $formatted"
+    }
+    return "Never online"
 }
 
 @Composable

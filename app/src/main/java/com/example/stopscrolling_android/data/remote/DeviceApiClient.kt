@@ -3,8 +3,12 @@ package com.example.stopscrolling_android.data.remote
 import com.example.stopscrolling_android.data.remote.dto.DeviceRegisterRequest
 import com.example.stopscrolling_android.data.remote.dto.DeviceRow
 import com.example.stopscrolling_android.data.remote.dto.DeviceListResponse
+import com.example.stopscrolling_android.data.remote.dto.DeviceStatusListResponse
+import com.example.stopscrolling_android.data.remote.dto.DeviceStatusRow
+import com.example.stopscrolling_android.data.remote.dto.EmptyBody
 import com.example.stopscrolling_android.data.remote.dto.InsightsSessionsResponse
 import com.example.stopscrolling_android.data.remote.dto.InsightsTimelineResponse
+import com.example.stopscrolling_android.data.remote.dto.InsightsTodayResponse
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -32,6 +36,30 @@ class DeviceApiClient @Inject constructor(
         return http.get(
             baseUrl = baseUrl,
             path = "api/devices/",
+            accessToken = accessToken
+        )
+    }
+
+    suspend fun fetchDeviceStatus(
+        baseUrl: String,
+        accessToken: String
+    ): DeviceStatusListResponse {
+        return http.get(
+            baseUrl = baseUrl,
+            path = "api/devices/status/",
+            accessToken = accessToken
+        )
+    }
+
+    suspend fun postHeartbeat(
+        baseUrl: String,
+        accessToken: String,
+        deviceId: String
+    ): DeviceStatusRow {
+        return http.post(
+            baseUrl = baseUrl,
+            path = "api/devices/$deviceId/heartbeat/",
+            body = EmptyBody,
             accessToken = accessToken
         )
     }
@@ -66,6 +94,23 @@ class DeviceApiClient @Inject constructor(
             queryParams = mapOf(
                 "start" to startIso,
                 "end" to endIso
+            )
+        )
+    }
+
+    suspend fun fetchTodayInsights(
+        baseUrl: String,
+        accessToken: String,
+        day: String,
+        timeZone: String
+    ): InsightsTodayResponse {
+        return http.get(
+            baseUrl = baseUrl,
+            path = "api/insights/today/",
+            accessToken = accessToken,
+            queryParams = mapOf(
+                "day" to day,
+                "time_zone" to timeZone
             )
         )
     }
@@ -108,6 +153,43 @@ class DeviceApiClient @Inject constructor(
         }
     }
 
+    suspend fun fetchDeviceStatusWithRetry(
+        baseUrl: String,
+        accessToken: String,
+        refreshAccessToken: suspend () -> String?
+    ): DeviceStatusListResponse {
+        return try {
+            fetchDeviceStatus(baseUrl, accessToken)
+        } catch (e: ApiException.HttpError) {
+            if (e.code == 401) {
+                val refreshed = refreshAccessToken()
+                    ?: throw ApiException.MissingAccessToken()
+                fetchDeviceStatus(baseUrl, refreshed)
+            } else {
+                throw e
+            }
+        }
+    }
+
+    suspend fun postHeartbeatWithRetry(
+        baseUrl: String,
+        accessToken: String,
+        deviceId: String,
+        refreshAccessToken: suspend () -> String?
+    ): DeviceStatusRow {
+        return try {
+            postHeartbeat(baseUrl, accessToken, deviceId)
+        } catch (e: ApiException.HttpError) {
+            if (e.code == 401) {
+                val refreshed = refreshAccessToken()
+                    ?: throw ApiException.MissingAccessToken()
+                postHeartbeat(baseUrl, refreshed, deviceId)
+            } else {
+                throw e
+            }
+        }
+    }
+
     suspend fun registerDeviceWithRetry(
         baseUrl: String,
         accessToken: String,
@@ -141,6 +223,26 @@ class DeviceApiClient @Inject constructor(
                 val refreshed = refreshAccessToken()
                     ?: throw ApiException.MissingAccessToken()
                 fetchTimeline(baseUrl, refreshed, deviceId, day)
+            } else {
+                throw e
+            }
+        }
+    }
+
+    suspend fun fetchTodayInsightsWithRetry(
+        baseUrl: String,
+        accessToken: String,
+        day: String,
+        timeZone: String,
+        refreshAccessToken: suspend () -> String?
+    ): InsightsTodayResponse {
+        return try {
+            fetchTodayInsights(baseUrl, accessToken, day, timeZone)
+        } catch (e: ApiException.HttpError) {
+            if (e.code == 401) {
+                val refreshed = refreshAccessToken()
+                    ?: throw ApiException.MissingAccessToken()
+                fetchTodayInsights(baseUrl, refreshed, day, timeZone)
             } else {
                 throw e
             }

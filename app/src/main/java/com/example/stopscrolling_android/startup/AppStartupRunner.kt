@@ -4,6 +4,7 @@ import com.example.stopscrolling_android.data.auth.AuthTokenStore
 import com.example.stopscrolling_android.data.sync.BackendSyncService
 import com.example.stopscrolling_android.domain.repository.AuthRepository
 import com.example.stopscrolling_android.worker.UploadScheduler
+import com.example.stopscrolling_android.worker.HeartbeatScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,7 +17,8 @@ class AppStartupRunner @Inject constructor(
     private val authRepository: AuthRepository,
     private val backendSyncService: BackendSyncService,
     private val tokenStore: AuthTokenStore,
-    private val uploadScheduler: UploadScheduler
+    private val uploadScheduler: UploadScheduler,
+    private val heartbeatScheduler: HeartbeatScheduler
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -32,6 +34,8 @@ class AppStartupRunner @Inject constructor(
         }
         if (!tokenStore.hasTokens()) return
         backendSyncService.ensureDeviceRegistered()
+        backendSyncService.postHeartbeat()
         uploadScheduler.scheduleUploadImmediate()
+        heartbeatScheduler.scheduleHeartbeatImmediate()
     }
 }
