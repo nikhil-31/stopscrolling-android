@@ -3,7 +3,6 @@ package com.example.stopscrolling_android.presentation.timeline
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -162,7 +161,7 @@ fun TimelineScreen(viewModel: UsageViewModel) {
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 16.dp),
+                contentPadding = PaddingValues(bottom = 32.dp),
             ) {
                 val groupedRecords = filteredRecords.groupBy { 
                     SimpleDateFormat("EEEE, MMM d", Locale.getDefault()).format(Date(it.startTimeUTC))
@@ -172,14 +171,63 @@ fun TimelineScreen(viewModel: UsageViewModel) {
                     item {
                         Text(
                             text = date,
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp)
+                            modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 12.dp)
                         )
                     }
-                    items(recordsForDate) { record ->
-                        UsageRecordItem(record)
+                    
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .height(IntrinsicSize.Min)
+                        ) {
+                            val segments = remember(recordsForDate) {
+                                recordsForDate.map { record ->
+                                    TimelineSegment(
+                                        id = record.id,
+                                        startTimeMs = record.startTimeUTC,
+                                        endTimeMs = record.endTimeUTC,
+                                        label = record.title ?: record.appName,
+                                        subtitle = record.appName,
+                                        category = record.category,
+                                        appName = record.appName,
+                                        deviceName = record.deviceName,
+                                        url = record.url,
+                                        durationSeconds = record.durationSeconds
+                                    )
+                                }
+                            }
+                            val (dayStart, dayEnd) = remember(recordsForDate) {
+                                TimelineModel.dayBounds(recordsForDate.first().startTimeUTC)
+                            }
+
+                            // Vertical Graphical Timeline
+                            VerticalTimelineBar(
+                                segments = segments,
+                                dayStartMs = dayStart,
+                                dayEndMs = dayEnd,
+                                modifier = Modifier
+                                    .width(80.dp)
+                                    .fillMaxHeight()
+                                    .padding(vertical = 4.dp)
+                            )
+
+                            Spacer(modifier = Modifier.width(16.dp))
+
+                            // Session Details List
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                recordsForDate.forEach { record ->
+                                    UsageRecordItem(record)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -192,95 +240,66 @@ fun UsageRecordItem(record: UsageRecord) {
     val timeFormat = remember { SimpleDateFormat("h:mm a", Locale.getDefault()) }
     val tint = CategoryColors.colorFor(record.category)
     
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
-        // Vertical Timeline Indicator
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.width(48.dp)
-        ) {
-            Text(
-                text = timeFormat.format(Date(record.startTimeUTC)),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(tint)
-            )
-            Box(
-                modifier = Modifier
-                    .width(2.dp)
-                    .weight(1f)
-                    .background(tint.copy(alpha = 0.2f))
-            )
-        }
-
-        Card(
-            modifier = Modifier.weight(1f),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(tint)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = record.appName,
                         style = MaterialTheme.typography.titleSmall,
                         maxLines = 1
                     )
-                    Text(
-                        text = TimelineModel.formatDuration(record.durationSeconds),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
                 }
+                Text(
+                    text = timeFormat.format(Date(record.startTimeUTC)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
-                if (record.title != null && record.title != record.appName) {
-                    Text(
-                        text = record.title,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                }
+            if (record.title != null && record.title != record.appName) {
+                Text(
+                    text = record.title,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    modifier = Modifier.padding(top = 4.dp, start = 16.dp)
+                )
+            }
 
-                if (record.url != null) {
-                    Text(
-                        text = record.url,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp, start = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = TimelineModel.formatDuration(record.durationSeconds),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
                 
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = record.category,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = tint.copy(alpha = 0.8f)
-                    )
-                    if (record.source != "BackendSync") {
-                         Text(
-                             text = "Pending Sync",
-                             style = MaterialTheme.typography.labelSmall,
-                             color = MaterialTheme.colorScheme.outline
-                         )
-                    }
+                if (record.source != "BackendSync") {
+                     Text(
+                         text = "Pending",
+                         style = MaterialTheme.typography.labelSmall,
+                         color = MaterialTheme.colorScheme.outline
+                     )
                 }
             }
         }

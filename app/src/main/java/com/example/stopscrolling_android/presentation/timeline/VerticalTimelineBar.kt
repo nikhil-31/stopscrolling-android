@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.Layout
@@ -15,30 +16,48 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun HorizontalTimelineBar(
+fun VerticalTimelineBar(
     segments: List<TimelineSegment>,
     dayStartMs: Long,
     dayEndMs: Long,
     modifier: Modifier = Modifier,
-    barHeight: Dp = 48.dp,
+    barWidth: Dp = 20.dp,
     onSegmentClick: ((TimelineSegment) -> Unit)? = null
 ) {
     val trackColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
 
-    Column(modifier = modifier) {
+    Row(modifier = modifier) {
+        // Hour Labels
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(end = 8.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.End
+        ) {
+            TimelineModel.dayGridHours.forEach { hour ->
+                Text(
+                    text = TimelineModel.hourLabel(hour),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        // The Bar
         Layout(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(barHeight)
-                .clip(RoundedCornerShape(8.dp))
+                .width(barWidth)
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(barWidth / 2))
                 .background(trackColor),
             content = {
-                // Day Grid Lines
+                // Hour markers
                 TimelineModel.dayGridHours.forEach { hour ->
                     Box(
                         modifier = Modifier
-                            .width(1.dp)
-                            .fillMaxHeight()
+                            .fillMaxWidth()
+                            .height(1.dp)
                             .background(
                                 MaterialTheme.colorScheme.onSurface.copy(
                                     alpha = if (hour == 0 || hour == 24) 0.12f else 0.06f
@@ -52,8 +71,8 @@ fun HorizontalTimelineBar(
                     val color = CategoryColors.colorFor(segment.category)
                     Box(
                         modifier = Modifier
-                            .padding(vertical = if (barHeight < 30.dp) 2.dp else 4.dp)
-                            .clip(RoundedCornerShape(if (barHeight < 30.dp) 2.dp else 4.dp))
+                            .padding(horizontal = 2.dp)
+                            .clip(RoundedCornerShape(4.dp))
                             .background(color.copy(alpha = 0.9f))
                             .then(
                                 if (onSegmentClick != null) {
@@ -66,69 +85,34 @@ fun HorizontalTimelineBar(
                 }
             }
         ) { measurables, constraints ->
-            val width = if (constraints.hasBoundedWidth) constraints.maxWidth else 0
             val height = if (constraints.hasBoundedHeight) constraints.maxHeight else 0
+            val width = if (constraints.hasBoundedWidth) constraints.maxWidth else 0
 
-            val gridMeasurables = measurables.subList(0, TimelineModel.dayGridHours.size)
+            val hourMeasurables = measurables.subList(0, TimelineModel.dayGridHours.size)
             val segmentMeasurables = measurables.subList(TimelineModel.dayGridHours.size, measurables.size)
 
-            val gridPlaceables = gridMeasurables.map { it.measure(constraints.copy(minWidth = 0)) }
+            val hourPlaceables = hourMeasurables.map { it.measure(constraints.copy(minHeight = 0)) }
+
             val segmentPlaceables = segmentMeasurables.mapIndexed { index, measurable ->
                 val segment = segments[index]
                 val fraction = segment.fraction(dayStartMs, dayEndMs)
-                val blockWidth = (fraction.width * width).toInt().coerceAtLeast(2)
-                measurable.measure(Constraints.fixed(blockWidth, height))
+                val segmentHeight = (fraction.width * height).toInt().coerceAtLeast(2)
+                measurable.measure(Constraints.fixed(width, segmentHeight))
             }
 
             layout(width, height) {
-                gridPlaceables.forEachIndexed { index, placeable ->
+                hourPlaceables.forEachIndexed { index, placeable ->
                     val hour = TimelineModel.dayGridHours[index]
-                    val x = (hour / 24f * width).toInt()
-                    placeable.placeRelative(x, 0)
+                    val y = (hour / 24f * height).toInt()
+                    placeable.placeRelative(0, y)
                 }
+
                 segmentPlaceables.forEachIndexed { index, placeable ->
                     val segment = segments[index]
                     val fraction = segment.fraction(dayStartMs, dayEndMs)
-                    val x = (fraction.x * width).toInt()
-                    placeable.placeRelative(x, 0)
+                    val y = (fraction.x * height).toInt()
+                    placeable.placeRelative(0, y)
                 }
-            }
-        }
-
-        if (barHeight > 30.dp) {
-            HourAxis(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun HourAxis(modifier: Modifier = Modifier) {
-    Layout(
-        modifier = modifier.height(16.dp),
-        content = {
-            TimelineModel.dayGridHours.forEach { hour ->
-                Text(
-                    text = TimelineModel.hourLabel(hour),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    ) { measurables, constraints ->
-        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else 0
-        val height = if (constraints.hasBoundedHeight) constraints.maxHeight else 0
-
-        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
-
-        layout(width, height) {
-            placeables.forEachIndexed { index, placeable ->
-                val hour = TimelineModel.dayGridHours[index]
-                val x = (hour / 24f * width).toInt()
-                placeable.placeRelative((x - placeable.width / 2).coerceAtLeast(0), 0)
             }
         }
     }
